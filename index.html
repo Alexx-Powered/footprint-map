@@ -31,7 +31,7 @@ dialog[open]::backdrop{animation:fade-in .16s ease-out}.tooltip:not([hidden]){an
 .level{transition:filter .12s,transform .1s}.button:active:not(:disabled),.level:active,.picker-close:active,.dialog-close:active,.more-menu button:active:not(:disabled){transform:scale(.97)}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 
-.city-label{fill:#5b514b;stroke:#fffdf9;stroke-width:3px;paint-order:stroke fill;stroke-linejoin:round;vector-effect:non-scaling-stroke;text-anchor:middle;font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;font-weight:500;pointer-events:none;user-select:none;-webkit-user-select:none}
+.city-label{fill:#5b514b;opacity:.7;stroke:none;text-anchor:middle;font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;font-weight:500;pointer-events:none;user-select:none;-webkit-user-select:none}
 #city-label-layer{pointer-events:none}
 </style>
 </head>
@@ -486,7 +486,7 @@ function cityLabelNameLines(name){
 }
 
 function createCityLabelPlan(cities,anchors,measure){
- const fontSize=13,lineHeight=15.5,padding=3,minScale=1.4,ratio=1.16,cache=[];
+ const fontSize=11,lineHeight=13,padding=3,minScale=1.4,ratio=1.16,cache=[];
  const entries=cities.flatMap(city=>{
   const point=anchors?.[city.id];
   if(!Array.isArray(point)||point.length!==2||!point.every(Number.isFinite))return[];
@@ -533,9 +533,9 @@ function createCityLabelPlan(cities,anchors,measure){
 
 function createCityLabels({$,el,cities,anchors}){
  const layer=$('city-label-layer'),canvas=document.createElement('canvas'),context=canvas.getContext('2d');
- if(context)context.font='500 13px "Microsoft YaHei","PingFang SC",system-ui,sans-serif';
+ if(context)context.font='500 11px "Microsoft YaHei","PingFang SC",system-ui,sans-serif';
  const measured=new Map(),measure=text=>{
-  if(!measured.has(text))measured.set(text,Math.max(1,context?context.measureText(text).width:Array.from(text).length*13));
+  if(!measured.has(text))measured.set(text,Math.max(1,context?context.measureText(text).width:Array.from(text).length*11));
   return measured.get(text);
  };
  const plan=createCityLabelPlan(cities,anchors,measure),nodes=new Map();
