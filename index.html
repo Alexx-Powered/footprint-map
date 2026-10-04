@@ -90,7 +90,39 @@ function closePicker(restore=false){
  else if(wasOpen&&(picker.contains(active)||active?.matches('.city')))active.blur();
  syncHighlight();
 }
-function positionPicker(){if($('city-picker').hidden||!pickerAnchor)return;const box=$('city-picker'),r=box.getBoundingClientRect(),w=document.documentElement.clientWidth,h=window.innerHeight;let x=pickerAnchor.x+14,y=pickerAnchor.y-r.height/2;if(x+r.width>w-10)x=pickerAnchor.x-r.width-14;x=Math.max(10,Math.min(x,w-r.width-10));y=Math.max(10,Math.min(y,h-r.height-10));box.style.left=x+'px';box.style.top=y+'px';}
+function choosePickerPosition(size,viewport,bounds,anchor){
+ const margin=10,gap=12,w=size.width,h=size.height;
+ const maxX=Math.max(margin,viewport.width-w-margin),maxY=Math.max(margin,viewport.height-h-margin);
+ const clampX=x=>Math.max(margin,Math.min(x,maxX)),clampY=y=>Math.max(margin,Math.min(y,maxY));
+ // Keep the whole selected outline clear, including a gap for its stroke and the menu shadow.
+ const candidates=bounds?[
+  {x:bounds.right+gap,y:anchor.y-h/2},
+  {x:bounds.left-gap-w,y:anchor.y-h/2},
+  {x:anchor.x-w/2,y:bounds.top-gap-h},
+  {x:anchor.x-w/2,y:bounds.bottom+gap}
+ ]:[{x:anchor.x+gap,y:anchor.y-h/2},{x:anchor.x-gap-w,y:anchor.y-h/2}];
+ // Corners also give the least overlap when a zoomed region leaves no clear side.
+ candidates.push({x:margin,y:margin},{x:maxX,y:margin},{x:margin,y:maxY},{x:maxX,y:maxY});
+ let best=null;
+ for(const candidate of candidates){
+  const x=clampX(candidate.x),y=clampY(candidate.y);
+  const overlap=bounds?Math.max(0,Math.min(x+w,bounds.right+gap)-Math.max(x,bounds.left-gap))*Math.max(0,Math.min(y+h,bounds.bottom+gap)-Math.max(y,bounds.top-gap)):0;
+  const distance=Math.hypot(x+w/2-anchor.x,y+h/2-anchor.y);
+  if(!best||overlap<best.overlap||(overlap===best.overlap&&distance<best.distance))best={x,y,overlap,distance};
+ }
+ return {x:best.x,y:best.y};
+}
+function positionPicker(){
+ const box=$('city-picker');if(box.hidden||!pickerAnchor)return;
+ const size=box.getBoundingClientRect(),viewport={width:document.documentElement.clientWidth,height:window.innerHeight};
+ let bounds=null;
+ for(const path of pathMap.get(selected)||[]){
+  const r=path.getBoundingClientRect();if(!r.width||!r.height)continue;
+  bounds=bounds?{left:Math.min(bounds.left,r.left),top:Math.min(bounds.top,r.top),right:Math.max(bounds.right,r.right),bottom:Math.max(bounds.bottom,r.bottom)}:{left:r.left,top:r.top,right:r.right,bottom:r.bottom};
+ }
+ const position=choosePickerPosition(size,viewport,bounds,pickerAnchor);
+ box.style.left=position.x+'px';box.style.top=position.y+'px';
+}
 function selectCity(id,anchor,origin){const c=byId.get(id);if(!c)return;closePicker();hideTip();$('more').open=false;selected=id;returnFocus=origin||pathMap.get(id)?.[0]||$('search-toggle');pickerAnchor=anchor||{x:window.innerWidth/2-100,y:window.innerHeight/2};$('picker-name').textContent=c.name;$('picker-meta').textContent=(c.name===c.province?'':c.province+' · ')+LEVELS[records[id]||0].name;const current=records[id]||0;for(const b of $('levels').children)b.setAttribute('aria-pressed',String(Number(b.dataset.level)===current));syncHighlight();$('picker-backdrop').hidden=false;$('city-picker').hidden=false;positionPicker();$('levels').querySelector('[data-level="'+current+'"]').focus({preventScroll:true});}
 function setLevel(value,restore=false){if(!selected||!Number.isInteger(value)||value<0||value>5)return;const id=selected,c=byId.get(id),old=records[id]||0;if(old!==value){pushHistory();if(value)records[id]=value;else delete records[id];save();}closePicker(restore);render();$('score-announcement').textContent=c.name+'，'+LEVELS[value].name+'，'+value+'分。总分'+score()+'分。';toast(c.name+' · '+LEVELS[value].name+(value?' '+value+' 分':'')+(value===old?'（未改变）':''));}
 for(const value of[5,4,3,2,1,0]){const l=LEVELS[value],b=document.createElement('button');b.type='button';b.className='level';b.dataset.level=value;b.style.setProperty('--color',l.color);b.setAttribute('aria-label',l.name+'，'+value+'分');b.setAttribute('aria-pressed','false');const label=document.createElement('span');label.className='level-name';label.textContent=l.name;const pts=document.createElement('span');pts.className='level-points';pts.textContent=value+' 分';const tick=document.createElement('span');tick.className='level-check';tick.textContent='✓';tick.setAttribute('aria-hidden','true');b.append(label,pts,tick);b.onclick=e=>setLevel(value,e.detail===0);$('levels').append(b);}
