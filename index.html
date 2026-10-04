@@ -401,7 +401,7 @@ function createExportSvg(data,values,levels){
  // Source: https://github.com/notofonts/noto-cjk/tree/main/Serif
  // Copyright and the complete OFL license are preserved inside the embedded font.
  const width=1500,height=2000,bounds=data.bounds;
- const mapBox={x:54,y:330,width:1392,height:1280};
+ const mapBox={x:54,y:360,width:1392,height:1280};
  const spanX=bounds[1][0]-bounds[0][0],spanY=bounds[1][1]-bounds[0][1];
  const scale=Math.min(mapBox.width/spanX,mapBox.height/spanY);
  const x=mapBox.x+(mapBox.width-spanX*scale)/2,y=mapBox.y+(mapBox.height-spanY*scale)/2;
