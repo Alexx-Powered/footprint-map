@@ -156,7 +156,8 @@ $('file-input').onchange=async e=>{
  try{if(file.size>1024*1024)throw Error('请选择不超过 1 MB 的足迹 JSON 备份。');const text=await file.text();if(!active())return;$('json-text').value=text;previewJsonImport();}
  catch(err){if(active()){jsonStatus(err.message||'文件读取失败，请重新选择文件。',true);$('json-submit').disabled=true;}}
 };
-let zoom={k:1,x:0,y:0},drag=null;
+let zoom={k:1,x:0,y:0},drag=null,pinch=null;
+const mapPointers=new Map();
 const hitContext=document.createElement('canvas').getContext('2d'),hitShapes=new Map();
 const smallIslandPriority=new Set(['460300','TW-10016','810000','820000']);
 function tapTargetSize(pointerType,smallScreen){return pointerType==='touch'||smallScreen?44:pointerType==='pen'?32:18;}
@@ -199,13 +200,68 @@ function resolveTap(clientX,clientY,pointerType,direct){
 
 function point(e){return new DOMPoint(e.clientX,e.clientY).matrixTransform($('map-svg').getScreenCTM().inverse());}
 function updateView(){$('map-stage').setAttribute('transform','translate('+zoom.x+','+zoom.y+') scale('+zoom.k+')');$('zoom-level').textContent=Math.round(zoom.k*100)+'%';$('zoom-out').disabled=zoom.k<=1.001;$('zoom-in').disabled=zoom.k>=12;}
-function zoomAt(factor,p={x:530,y:410}){closePicker();const old=zoom.k,next=Math.max(1,Math.min(12,old*factor));if(next===1)zoom={k:1,x:0,y:0};else{zoom.x=p.x-(p.x-zoom.x)*next/old;zoom.y=p.y-(p.y-zoom.y)*next/old;zoom.k=next;}updateView();hideTip();}
-$('zoom-in').onclick=()=>zoomAt(1.45);$('zoom-out').onclick=()=>zoomAt(1/1.45);$('zoom-reset').onclick=()=>{closePicker();zoom={k:1,x:0,y:0};updateView();};
+function zoomAt(factor,p={x:530,y:410}){cancelMapGesture();closePicker();const old=zoom.k,next=Math.max(1,Math.min(12,old*factor));if(next===1)zoom={k:1,x:0,y:0};else{zoom.x=p.x-(p.x-zoom.x)*next/old;zoom.y=p.y-(p.y-zoom.y)*next/old;zoom.k=next;}updateView();hideTip();}
+$('zoom-in').onclick=()=>zoomAt(1.45);$('zoom-out').onclick=()=>zoomAt(1/1.45);$('zoom-reset').onclick=()=>{cancelMapGesture();closePicker();zoom={k:1,x:0,y:0};updateView();};
 $('map-svg').addEventListener('wheel',e=>{e.preventDefault();zoomAt(Math.exp(-e.deltaY*.0014),point(e));},{passive:false});
-$('map-svg').addEventListener('pointerdown',e=>{if(e.button!==0)return;if(drag){drag.moved=true;return;}const p=point(e);drag={id:e.pointerId,pointerType:e.pointerType,start:p,clientX:e.clientX,clientY:e.clientY,x:zoom.x,y:zoom.y,moved:false,target:e.target.closest('.city')};$('map-svg').setPointerCapture(e.pointerId);});
-$('map-svg').addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;const p=point(e);if(Math.hypot(e.clientX-drag.clientX,e.clientY-drag.clientY)>(drag.pointerType==='touch'?10:5))drag.moved=true;if(drag.moved){zoom.x=drag.x+p.x-drag.start.x;zoom.y=drag.y+p.y-drag.start.y;updateView();hideTip();$('map-svg').classList.add('dragging');}});
-$('map-svg').addEventListener('pointerup',e=>{if(!drag||e.pointerId!==drag.id)return;const d=drag;drag=null;$('map-svg').classList.remove('dragging');if($('map-svg').hasPointerCapture(e.pointerId))$('map-svg').releasePointerCapture(e.pointerId);hideTip();if(!d.moved){const city=resolveTap(d.clientX,d.clientY,d.pointerType,d.target);if(city)selectCity(city.id,{x:e.clientX,y:e.clientY},pathMap.get(city.id)?.[0]);}});
-$('map-svg').addEventListener('pointercancel',()=>{drag=null;$('map-svg').classList.remove('dragging');hideTip();closePicker();});
+function startMapDrag(pointer,moved){
+ drag={id:pointer.id,pointerType:pointer.pointerType,start:pointer.position,clientX:pointer.clientX,clientY:pointer.clientY,x:zoom.x,y:zoom.y,moved,target:pointer.target};
+}
+function pinchFrame(){
+ const a=mapPointers.get(pinch.ids[0]).position,b=mapPointers.get(pinch.ids[1]).position;
+ return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,distance:Math.hypot(a.x-b.x,a.y-b.y)};
+}
+function startMapPinch(){
+ drag=null;pinch={ids:[...mapPointers.keys()].slice(0,2)};
+ const frame=pinchFrame();
+ pinch.distance=frame.distance;pinch.k=zoom.k;pinch.anchor={x:(frame.x-zoom.x)/zoom.k,y:(frame.y-zoom.y)/zoom.k};
+ closePicker();hideTip();$('map-svg').classList.add('dragging');
+}
+function moveMapPointer(e){
+ const pointer=mapPointers.get(e.pointerId);if(!pointer)return;
+ pointer.position=point(e);pointer.clientX=e.clientX;pointer.clientY=e.clientY;
+ if(pinch){
+  if(!pinch.ids.includes(e.pointerId))return;
+  const frame=pinchFrame();
+  // Ignore a coincident starting pair until its distance can define a stable scale.
+  if(pinch.distance<.01){startMapPinch();return;}
+  const k=Math.max(1,Math.min(12,pinch.k*frame.distance/pinch.distance));
+  zoom={k,x:frame.x-pinch.anchor.x*k,y:frame.y-pinch.anchor.y*k};updateView();hideTip();return;
+ }
+ if(!drag||drag.id!==e.pointerId)return;
+ if(Math.hypot(e.clientX-drag.clientX,e.clientY-drag.clientY)>(drag.pointerType==='touch'?10:5))drag.moved=true;
+ if(drag.moved){zoom.x=drag.x+pointer.position.x-drag.start.x;zoom.y=drag.y+pointer.position.y-drag.start.y;updateView();hideTip();$('map-svg').classList.add('dragging');}
+}
+function finishMapPointer(e,cancelled=false){
+ if(!mapPointers.has(e.pointerId))return;
+ if(!cancelled)moveMapPointer(e);
+ const tapped=!cancelled&&mapPointers.size===1&&drag&&!drag.moved?drag:null;
+ mapPointers.delete(e.pointerId);
+ if(!mapPointers.size){drag=null;pinch=null;$('map-svg').classList.remove('dragging');}
+ else if(mapPointers.size===1){pinch=null;startMapDrag(mapPointers.values().next().value,true);}
+ else if(pinch?.ids.includes(e.pointerId))startMapPinch();
+ // Clear this pointer first: releasing capture may also fire lostpointercapture.
+ if($('map-svg').hasPointerCapture(e.pointerId))$('map-svg').releasePointerCapture(e.pointerId);
+ hideTip();
+ if(tapped){const city=resolveTap(tapped.clientX,tapped.clientY,tapped.pointerType,tapped.target);if(city)selectCity(city.id,{x:e.clientX,y:e.clientY},pathMap.get(city.id)?.[0]);}
+}
+function cancelMapGesture(){
+ const ids=[...mapPointers.keys()];mapPointers.clear();drag=null;pinch=null;
+ $('map-svg').classList.remove('dragging');
+ for(const id of ids)if($('map-svg').hasPointerCapture(id))$('map-svg').releasePointerCapture(id);
+ hideTip();
+}
+$('map-svg').addEventListener('pointerdown',e=>{
+ if(e.button!==0||mapPointers.has(e.pointerId))return;
+ const pointer={id:e.pointerId,pointerType:e.pointerType,position:point(e),clientX:e.clientX,clientY:e.clientY,target:e.target.closest('.city')};
+ mapPointers.set(e.pointerId,pointer);$('map-svg').setPointerCapture(e.pointerId);
+ if(mapPointers.size===1)startMapDrag(pointer,false);else if(!pinch)startMapPinch();
+});
+$('map-svg').addEventListener('pointermove',moveMapPointer);
+$('map-svg').addEventListener('pointerup',e=>finishMapPointer(e));
+$('map-svg').addEventListener('pointercancel',e=>finishMapPointer(e,true));
+$('map-svg').addEventListener('lostpointercapture',e=>finishMapPointer(e,true));
+window.addEventListener('blur',cancelMapGesture);
+window.addEventListener('resize',cancelMapGesture);
 function createExportSvg(data,values,levels){
  const width=1500,height=2000,bounds=data.bounds;
  const mapBox={x:90,y:420,width:1320,height:1450};
