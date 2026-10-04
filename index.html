@@ -486,25 +486,29 @@ function cityLabelNameLines(name){
 }
 
 function createCityLabelPlan(cities,anchors,measure){
- const fontSize=11,lineHeight=13,padding=3,minScale=1.4,ratio=1.16,cache=[];
+ const fontSize=11,lineHeight=13,padding=3,minScale=2.2,minZoom=4,ratio=1.1,cache=[];
  const entries=cities.flatMap(city=>{
   const point=anchors?.[city.id];
   if(!Array.isArray(point)||point.length!==2||!point.every(Number.isFinite))return[];
   const lines=cityLabelNameLines(city.name),width=Math.max(...lines.map(measure)),height=fontSize+(lines.length-1)*lineHeight;
   const bounds=city.bounds||[point,point],mapWidth=Math.max(0,bounds[1][0]-bounds[0][0]),mapHeight=Math.max(0,bounds[1][1]-bounds[0][1]);
   const area=city.hitParts?.reduce((sum,part)=>sum+(Number.isFinite(part.area)?Math.max(0,part.area):0),0)||mapWidth*mapHeight;
-  // Wait until the name broadly fits its region. Very small districts and islands
-  // may extend outside their polygon, but still participate in label collisions.
-  const startScale=Math.min(3.1,Math.max(minScale,width/Math.max(1,mapWidth*1.6),height/Math.max(1,mapHeight*1.6)));
-  return[{id:city.id,name:city.name,x:point[0],y:point[1],lines,width,height,area,startScale}];
+  return[{id:city.id,name:city.name,x:point[0],y:point[1],lines,width,height,area}];
  }).sort((a,b)=>b.area-a.area||(a.id<b.id?-1:a.id>b.id?1:0));
+ // The map uses an equal-area projection. Rank by polygon area in four bands,
+ // with a 30% eligibility window so small cities need only a little more zoom.
+ // Name length and an offshore island's bounding box do not set its priority.
+ for(let i=0,rank=0;i<entries.length;i++){
+  if(i&&entries[i].area!==entries[i-1].area)rank=i;
+  entries[i].startScale=minScale*(1+.1*Math.min(3,Math.floor(rank*4/entries.length)));
+ }
  const empty={key:-1,scale:0,labels:[]};
  function atScale(scale){
   if(!Number.isFinite(scale)||scale<minScale)return empty;
   const key=Math.min(64,Math.max(0,Math.floor(Math.log(scale/minScale)/Math.log(ratio)+1e-9)));
   if(cache[key])return cache[key];
-  for(let index=cache.length;index<=key;index++){
-   const currentScale=minScale*Math.pow(ratio,index),labels=[],selected=new Set(),grid=new Map(),cellSize=96;
+  {
+   const currentScale=minScale*Math.pow(ratio,key),labels=[],grid=new Map(),cellSize=96;
    function rectFor(entry){return{left:entry.x*currentScale-entry.width/2-padding,right:entry.x*currentScale+entry.width/2+padding,top:entry.y*currentScale-entry.height/2-padding,bottom:entry.y*currentScale+entry.height/2+padding};}
    function cellsFor(rect){
     const cells=[];
@@ -512,23 +516,22 @@ function createCityLabelPlan(cities,anchors,measure){
     return cells;
    }
    function add(entry,rect,cells){
-    labels.push(entry);selected.add(entry.id);
+    labels.push(entry);
     for(const cell of cells){if(!grid.has(cell))grid.set(cell,[]);grid.get(cell).push(rect);}
    }
-   // Previously visible names stay visible as the map grows. This prevents a
-   // newly eligible larger region from displacing a neighboring city's name.
-   for(const entry of cache[index-1]?.labels||[]){const rect=rectFor(entry);add(entry,rect,cellsFor(rect));}
+   // Reapply area priority in every bucket: a small city from a previous zoom
+   // must never keep a larger, now readable city out of the layout.
    for(const entry of entries){
-    if(selected.has(entry.id)||entry.startScale>currentScale)continue;
+    if(entry.startScale>currentScale)continue;
     const rect=rectFor(entry),cells=cellsFor(rect);
     const overlaps=cells.some(cell=>(grid.get(cell)||[]).some(other=>rect.left<other.right&&rect.right>other.left&&rect.top<other.bottom&&rect.bottom>other.top));
     if(!overlaps)add(entry,rect,cells);
    }
-   cache[index]={key:index,scale:currentScale,labels};
+   cache[key]={key,scale:currentScale,labels};
   }
   return cache[key];
  }
- return{entries,atScale,fontSize,lineHeight};
+ return{entries,atScale,fontSize,lineHeight,minScale,minZoom};
 }
 
 function createCityLabels({$,el,cities,anchors}){
@@ -543,7 +546,7 @@ function createCityLabels({$,el,cities,anchors}){
  layer.setAttribute('display','none');
  function viewChanged(view){
   const scale=view.scale*view.k;
-  if(!Number.isFinite(scale)||view.k<2.8||scale<1.4){
+  if(!Number.isFinite(scale)||view.k<plan.minZoom||scale<plan.minScale){
    if(shown){layer.setAttribute('display','none');shown=false;}
    return;
   }
