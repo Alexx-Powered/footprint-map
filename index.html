@@ -408,7 +408,8 @@ function createExportSvg(data,values,levels){
  if(data.outline)parts.push(`<path d="${escape(data.outline)}" fill="none" stroke="#45403c" stroke-width="1"/>`);
  for(const p of data.special)if(p.d)parts.push(`<path d="${escape(p.d)}" fill="#474747"/>`);
  parts.push('</g>');
- [{value:5,x:110,y:1730},{value:4,x:770,y:1730},{value:3,x:110,y:1850},{value:2,x:590,y:1850},{value:1,x:1070,y:1850}].forEach(({value,x,y})=>{
+ [5,4,3,2,1].forEach((value,index)=>{
+  const x=110,y=1470+index*96;
   parts.push(`<rect x="${x}" y="${y}" width="54" height="54" rx="8" fill="${levels[value].color}"/>`);
   parts.push(`<text x="${x+78}" y="${y+44}" fill="#45403c" font-size="48">${escape((levels[value].short||levels[value].name)+' '+value+' 分')}</text>`);
  });
