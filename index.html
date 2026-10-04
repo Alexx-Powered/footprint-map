@@ -62,7 +62,7 @@ dialog[open]::backdrop{animation:fade-in .16s ease-out}.tooltip:not([hidden]){an
 'use strict';
 (() => {
 const DATA=JSON.parse(document.getElementById('atlas-data').textContent);
-const LEVELS=[{name:'未去过',color:'#ffffff'},{name:'途经',color:'#b4ccff'},{name:'出差',color:'#a8ffbe'},{name:'游玩',color:'#ffdc91'},{name:'深度游 / 多次游玩',short:'深度 / 多次游',color:'#ffbb91'},{name:'家乡/居住（过）',color:'#ff9a91'}];
+const LEVELS=[{name:'未去过',color:'#ffffff'},{name:'途经',color:'#b4ccff'},{name:'出差',color:'#a8ffbe'},{name:'游玩',color:'#ffdc91'},{name:'深度游 / 多次游玩',short:'深度/多次游',color:'#ffbb91'},{name:'家乡/居住（过）',color:'#ff9a91'}];
 const $=id=>document.getElementById(id),NS='http://www.w3.org/2000/svg';
 const cities=DATA.cities,byId=new Map(cities.map(c=>[c.id,c])),pathMap=new Map();
 const KEY='footprint-atlas-v1';let records={},selected=null,hoveredId=null,highlightedId=null,onlyVisited=false,history=[],toastTimer,confirmAction=null,storageOkay=true,returnFocus=null,pickerAnchor=null;
