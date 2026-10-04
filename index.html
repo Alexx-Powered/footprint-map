@@ -492,7 +492,7 @@ function cityLabelNameLines(name){
 }
 
 function createCityLabelPlan(cities,anchors,measure){
- const fontSize=11,lineHeight=13,padding=3,minScale=2.2,minZoom=4,ratio=1.1,cache=[];
+ const fontSize=10,lineHeight=13,padding=3,minScale=2.2,minZoom=4,ratio=1.1,cache=[];
  const entries=cities.flatMap(city=>{
   const point=anchors?.[city.id];
   if(!Array.isArray(point)||point.length!==2||!point.every(Number.isFinite))return[];
@@ -542,9 +542,9 @@ function createCityLabelPlan(cities,anchors,measure){
 
 function createCityLabels({$,el,cities,anchors,mobile=false,maxZoom=12}){
  const layer=$('city-label-layer'),canvas=document.createElement('canvas'),context=canvas.getContext('2d');
- if(context)context.font='500 11px "Microsoft YaHei","PingFang SC",system-ui,sans-serif';
+ if(context)context.font='500 10px "Microsoft YaHei","PingFang SC",system-ui,sans-serif';
  const measured=new Map(),measure=text=>{
-  if(!measured.has(text))measured.set(text,Math.max(1,context?context.measureText(text).width:Array.from(text).length*11));
+  if(!measured.has(text))measured.set(text,Math.max(1,context?context.measureText(text).width:Array.from(text).length*10));
   return measured.get(text);
  };
  const plan=createCityLabelPlan(cities,anchors,measure),nodes=new Map(),allLabels={key:'all',labels:plan.entries};
