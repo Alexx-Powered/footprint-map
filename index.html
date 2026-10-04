@@ -399,11 +399,11 @@ function createExportSvg(data,values,levels){
  const x=mapBox.x+(mapBox.width-spanX*scale)/2,y=mapBox.y+(mapBox.height-spanY*scale)/2;
  const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
  const levelOf=id=>Number.isInteger(values[id])&&values[id]>=1&&values[id]<=5?values[id]:0;
- const total=data.cities.reduce((sum,c)=>sum+levelOf(c.id),0),visited=data.cities.filter(c=>levelOf(c.id)>0).length;
+ const total=data.cities.reduce((sum,c)=>sum+levelOf(c.id),0),visited=data.cities.filter(c=>levelOf(c.id)>0).length,played=data.cities.filter(c=>levelOf(c.id)>=3).length;
  const parts=[`<svg xmlns="http://www.w3.org/2000/svg" width="6000" height="8000" viewBox="0 0 ${width} ${height}" font-family="Microsoft YaHei, PingFang SC, Noto Sans CJK SC, system-ui, sans-serif">`,
  '<rect width="1500" height="2000" fill="#ffffff"/>',
  '<text x="750" y="155" text-anchor="middle" fill="#292929" font-size="84" font-weight="400" letter-spacing="6">足迹地图</text>',
- `<text x="750" y="255" text-anchor="middle" fill="#635b55" font-size="52">分数 ${total}　/　已去 ${visited} 个地区</text>`,
+ `<text x="750" y="255" text-anchor="middle" fill="#635b55" font-size="52">分数 ${total}　/　游玩地区 ${played}　/　总计地区 ${visited}</text>`,
  `<g transform="translate(${x} ${y}) scale(${scale}) translate(${-bounds[0][0]} ${-bounds[0][1]})" stroke-linejoin="round">`];
  for(const c of data.cities)if(c.d)parts.push(`<path d="${escape(c.d)}" fill="${levels[levelOf(c.id)].color}" stroke="#776d66" stroke-width="0.6"/>`);
  if(data.provinceBoundary)parts.push(`<path d="${escape(data.provinceBoundary)}" fill="none" stroke="#655b54" stroke-width="0.8" stroke-linecap="round"/>`);
