@@ -17,20 +17,24 @@
 <style>
 *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;overscroll-behavior:none;background:#faf6f3;color:#252526;font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;touch-action:manipulation}
 body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-.map-frame{position:fixed;inset:0;width:100%;height:100%;height:100dvh;border:0;visibility:hidden;pointer-events:none}
-.map-frame.active{visibility:visible;pointer-events:auto}
+.map-frame{position:fixed;inset:0;width:100%;height:100%;height:100dvh;border:0;z-index:0;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .24s ease,visibility 0s .24s}
+.map-frame.active{z-index:1;visibility:visible;transition-delay:0s}
+.map-frame.presented{opacity:1;visibility:visible;transition-delay:0s}
+.map-frame.active.presented{pointer-events:auto}
 /* Desktop: keep a 200px title/statistics slot, then a 20px gap after the header padding. */
 .map-switcher{position:fixed;z-index:10;top:calc(max(18px,env(safe-area-inset-top)) + 16px);left:calc(max(18px,env(safe-area-inset-left)) + 232px);display:flex;gap:4px;padding:0;border:0;border-radius:9px;background:#f3eee8}
 .map-switcher[hidden]{display:none}
-.map-switcher button{font:500 13px/1.4 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;min-width:76px;min-height:44px;padding:8px 10px;border:0;border-radius:8px;color:#786d65;background:transparent;white-space:nowrap;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background-color .15s,color .15s}
-.map-switcher button[aria-selected="true"]{background:#2c2927;color:#fff}
+.map-switcher::before{content:"";position:absolute;inset:0 auto 0 0;width:calc((100% - 4px)/2);border-radius:8px;background:#2c2927;pointer-events:none;transition:transform .24s cubic-bezier(.22,.61,.36,1)}
+.map-switcher[data-map="world"]::before{transform:translateX(calc(100% + 4px))}
+.map-switcher button{position:relative;z-index:1;flex:1;font:500 13px/1.4 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;min-width:76px;min-height:44px;padding:8px 10px;border:0;border-radius:8px;color:#786d65;background:transparent;white-space:nowrap;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background-color .24s,color .24s}
+.map-switcher button[aria-selected="true"]{color:#fff}
 .map-switcher button:hover:not([aria-selected="true"]){background:#f1e8e1}
 .map-switcher button:focus-visible{outline:2px solid #638cdc;outline-offset:2px}
-.loading{position:fixed;inset:0;display:grid;place-content:center;pointer-events:none;font-size:14px;color:#827772;background:#faf6f3;z-index:2}
+.loading{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);padding:12px 18px;border-radius:12px;pointer-events:none;font-size:14px;color:#827772;background:#fffdf8ed;box-shadow:0 4px 20px #48332412;z-index:2}
 .loading[hidden]{display:none}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 @media(max-width:680px){.map-switcher{top:calc(max(12px,env(safe-area-inset-top)) + 10px);left:calc(max(12px,env(safe-area-inset-left)) + 10px);transform:none}}
-@media(prefers-reduced-motion:reduce){.map-switcher button{transition:none}}
+@media(prefers-reduced-motion:reduce){.map-frame,.map-switcher::before,.map-switcher button{transition:none}}
 </style>
 </head>
 <body>
@@ -67,10 +71,15 @@ const frameBridge="(() => {\n 'use strict';\n // Keep the parent's switcher outs
   const frame=frames.get(active);
   switcher.hidden=ready.has(active)&&!!frame.contentDocument.querySelector('dialog[open],#city-picker:not([hidden])');
  }
+ function presentMap(kind){
+  // Keep the previous map visible (but inert) until the new document is ready.
+  // CSS owns the reversible fade, so rapid clicks cannot leave stale timers.
+  for(const [id,frame]of frames)frame.classList.toggle('presented',id===kind);
+ }
  function showMap(kind,focus=false){
   if(!frames.has(kind)||kind===active)return;
   if(active)dismiss(frames.get(active));
-  active=kind;switcher.hidden=false;
+  active=kind;switcher.hidden=false;switcher.dataset.map=kind;
   for(const [id,frame]of frames){
    const selected=id===kind;
    frame.classList.toggle('active',selected);frame.inert=!selected;
@@ -84,7 +93,10 @@ const frameBridge="(() => {\n 'use strict';\n // Keep the parent's switcher outs
    started.add(kind);
    const bridge='<script>'+frameBridge+'<\/script>';
    frame.srcdoc=documents[kind].replace('</head>','<style>'+frameStyle+'</style></head>').replace('</body>',bridge+'</body>');
-  }else if(ready.has(kind))frame.contentWindow.dispatchEvent(new frame.contentWindow.Event('resize'));
+  }else if(ready.has(kind)){
+   frame.contentWindow.dispatchEvent(new frame.contentWindow.Event('resize'));
+   presentMap(kind);
+  }
   document.getElementById('map-announcement').textContent='已切换到'+name;
   if(focus)document.getElementById('tab-'+kind).focus({preventScroll:true});
   refreshPanel();
@@ -94,7 +106,7 @@ const frameBridge="(() => {\n 'use strict';\n // Keep the parent's switcher outs
   frame.addEventListener('load',()=>{
    if(!started.has(kind)||!frame.contentDocument?.getElementById('map-svg'))return;
    ready.add(kind);
-   if(kind===active){loading.hidden=true;refreshPanel();}
+   if(kind===active){presentMap(kind);loading.hidden=true;refreshPanel();}
    else dismiss(frame);
   });
   const button=document.getElementById('tab-'+kind);
