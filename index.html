@@ -594,6 +594,7 @@ startVisitCounter("https://api.alexxpowered.top/footprint-map/visits");
       token = Array.from(crypto.getRandomValues(new Uint32Array(4)),
         part => part.toString(16).padStart(8, '0')).join('');
       const url = new URL(newSite);
+      url.searchParams.set('migration', '2');
       url.hash = 'transfer=' + token;
       popup = window.open(url.href, '_blank');
     } catch {
